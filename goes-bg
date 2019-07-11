@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+
+require 'open-uri'
+require 'byebug'
+require 'fileutils'
+
+class Integer
+  def minutes
+    self * 60
+  end
+end
+
+class Time
+  def round(sec=1)
+    down = self - (self.to_i % sec)
+    up = down + sec
+
+    difference_down = self - down
+    difference_up = up - self
+
+    if (difference_down < difference_up)
+      return down
+    else
+      return up
+    end
+  end
+end
+
+class GoesFile
+  attr_reader :time
+
+  def initialize(time)
+    @time = time
+  end
+
+  def to_s
+    sat = "GOES17"
+    "#{timestamp}_#{sat}-ABI-FD-GEOCOLOR-#{resolution}.jpg"
+  end
+
+  def timestamp
+    time.round(10.minutes).strftime("%Y%j%H%M")
+  end
+
+  def dim
+    #5424
+    1808
+  end
+
+  def resolution
+    "#{dim}x#{dim}"
+  end
+end
+
+time = Time.now
+tries = 10
+
+begin
+  file = GoesFile.new(time)
+  uri = "https://cdn.star.nesdis.noaa.gov/GOES17/ABI/FD/GEOCOLOR/#{file}"
+
+  pp "trying timestamp: #{file.timestamp}"
+
+  open(uri) do |file|
+    File.open("temp.jpg", "w+").write(file.read)
+  end
+rescue OpenURI::HTTPError => e
+  time = time - 10.minutes
+  tries -= 1
+  retry
+end
+
+# 904 == 1808 / 2
+system("convert temp.jpg -resize 904x904 current.jpg") or raise $?
+FileUtils.rm("temp.jpg")
